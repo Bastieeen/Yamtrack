@@ -1,0 +1,84 @@
+name: Synchro Yamtrack officiel
+
+# Every Monday, merge the latest official Yamtrack release into "perso",
+# rebuild the stylesheet, run the custom tests, then rebuild the image.
+# Any conflict outside the stylesheet stops the run without pushing anything;
+# GitHub then sends a failure email.
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: perso
+          fetch-depth: 0
+
+      - name: Fetch official releases
+        id: upstream
+        run: |
+          git remote add upstream https://github.com/FuzzyGrim/Yamtrack.git
+          git fetch --quiet upstream --tags
+          latest=$(git tag -l 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          if git merge-base --is-ancestor "$latest" HEAD; then
+            echo "Already up to date with $latest"
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New official release: $latest"
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge the new release
+        if: steps.upstream.outputs.update == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          latest="${{ steps.upstream.outputs.latest }}"
+          if ! git merge --no-edit --no-ff "$latest"; then
+            conflicts=$(git diff --name-only --diff-filter=U)
+            if [ "$conflicts" != "src/static/css/main.css" ]; then
+              echo "::error::Conflict with $latest in: $conflicts"
+              git merge --abort
+              exit 1
+            fi
+            git checkout --theirs src/static/css/main.css
+            git add src/static/css/main.css
+            git commit --no-edit
+          fi
+          # Always regenerate the stylesheet from the official one's Tailwind version.
+          git checkout "$latest" -- src/static/css/main.css
+          sh .github/perso/rebuild-css.sh
+          git add src/static/css/main.css
+          git diff --cached --quiet || git commit -m "Rebuild stylesheet after merging $latest"
+
+      - uses: astral-sh/setup-uv@v6
+        if: steps.upstream.outputs.update == 'true'
+
+      - name: Check there is no database change of our own
+        if: steps.upstream.outputs.update == 'true'
+        working-directory: src
+        run: |
+          uv sync
+          uv run python manage.py makemigrations --check --dry-run --settings=config.test_settings
+
+      - name: Run custom page tests
+        if: steps.upstream.outputs.update == 'true'
+        working-directory: src
+        run: uv run pytest app/tests/views/test_up_next.py -q
+
+      - name: Push and rebuild the image
+        if: steps.upstream.outputs.update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push origin perso
+          gh workflow run perso-image.yml --ref perso

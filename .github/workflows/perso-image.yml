@@ -1,0 +1,61 @@
+name: Image perso
+
+# Builds ghcr.io/bastieeen/yamtrack:perso from the "perso" branch
+# (official Yamtrack release + custom "À voir" / "Sorties" pages).
+on:
+  push:
+    branches: [perso]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: perso-image
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: uv sync
+      - name: Run custom page tests
+        working-directory: src
+        run: uv run pytest app/tests/views/test_up_next.py -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Find the official version this build is based on
+        id: version
+        run: |
+          # Tags are read from the official repository, never pushed to the fork
+          # (pushing a v* tag would also start the official image workflow here).
+          git fetch --quiet https://github.com/FuzzyGrim/Yamtrack.git 'refs/tags/v*:refs/tags/v*'
+          echo "tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.tag }}-perso
+          tags: |
+            ghcr.io/bastieeen/yamtrack:perso
+            ghcr.io/bastieeen/yamtrack:perso-${{ steps.version.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
