@@ -1,6 +1,6 @@
 from django.urls import path, register_converter
 
-from app import converters, views
+from app import converters, up_next_views, views
 
 register_converter(converters.MediaTypeChecker, "media_type")
 register_converter(converters.SourceChecker, "source")
@@ -8,6 +8,11 @@ register_converter(converters.SourceChecker, "source")
 
 urlpatterns = [
     path("", views.home, name="home"),
+    path("up-next", up_next_views.up_next_page, name="up_next"),
+    path("up-next/<int:season_id>/watch", up_next_views.up_next_watch, name="up_next_watch"),
+    path("up-next/<int:season_id>/undo", up_next_views.up_next_undo, name="up_next_undo"),
+    path("up-next/<int:season_id>/status", up_next_views.up_next_status, name="up_next_status"),
+    path("releases", up_next_views.releases_page, name="releases"),
     path("<str:username>/<media_type:media_type>", views.media_list, name="medialist"),
     path("search", views.media_search, name="search"),
     path(

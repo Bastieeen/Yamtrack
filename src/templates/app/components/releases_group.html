@@ -1,0 +1,43 @@
+{% load app_tags %}
+
+{% if releases %}
+  <section class="space-y-3">
+    <h2 class="text-sm font-medium text-gray-400">{{ title }}</h2>
+    <ul class="divide-y divide-gray-700/60 overflow-hidden rounded-lg bg-[#2a2f35]">
+      {% for release in releases %}
+        <li>
+          <a href="{{ release.item|media_url }}"
+             class="flex items-center gap-3 p-3 transition-colors hover:bg-[#343a40]">
+            <img alt="{{ release.item.title }}"
+                 class="lazyload h-[72px] w-12 shrink-0 rounded-md bg-[#3e454d] object-cover"
+                 data-src="{{ release.item.image }}"
+                 src="{{ IMG_NONE }}">
+            <div class="min-w-0 flex-1">
+              <p class="line-clamp-1 text-sm font-semibold text-white">{{ release.item.title }}</p>
+              <p class="text-xs text-gray-400">
+                {% if release.item.season_number is not None and release.content_number %}
+                  S{{ release.item.season_number|stringformat:"02d" }}E{{ release.content_number|stringformat:"02d" }}
+                {% elif release.readable_content_number %}
+                  {{ release.readable_content_number }}
+                {% else %}
+                  {{ release.item.media_type|media_type_readable }}
+                {% endif %}
+                ·
+                {% if show_time %}
+                  {% if release.is_sentinel_time %}heure inconnue{% else %}{{ release.datetime|time_format:user }}{% endif %}
+                {% else %}
+                  {{ release.local_date|date_format:user }}
+                {% endif %}
+              </p>
+            </div>
+            {% if release.is_premiere %}
+              <span class="shrink-0 rounded-md bg-indigo-600/20 px-2 py-0.5 text-xs font-medium text-indigo-300">
+                {% if release.item.season_number == 1 %}Nouvelle série{% else %}Nouvelle saison{% endif %}
+              </span>
+            {% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endif %}

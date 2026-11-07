@@ -1,0 +1,152 @@
+{% load app_tags %}
+
+{% if entry %}
+  {% with season=entry.media item=entry.item %}
+    <li id="up-next-row-{{ season.id }}"
+        class="relative overflow-hidden rounded-lg bg-[#2a2f35]"
+        x-data="swipeRow({ canWatch: {% if entry.is_available %}true{% else %}false{% endif %} })"
+        @swipe-row-start.window="closeIfOther($event)">
+
+      {# Revealed behind the row while swiping #}
+      <div class="absolute inset-0 flex items-stretch justify-between" aria-hidden="true">
+        <div class="flex items-center gap-2 bg-emerald-600 px-5 text-sm font-medium text-white"
+             :class="dx > 0 ? 'opacity-100' : 'opacity-0'">
+          {% include "app/icons/checkmark.svg" with classes="w-5 h-5" %}
+          <span>Vu</span>
+        </div>
+        <div x-ref="actions" class="flex" :class="dx < 0 ? 'opacity-100' : 'opacity-0'">
+          <button type="button"
+                  class="w-20 bg-amber-600 text-sm font-medium text-white"
+                  hx-post="{% url 'up_next_status' season.id %}"
+                  hx-vals='{"status": "Paused"}'
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-target="#up-next-row-{{ season.id }}"
+                  hx-swap="outerHTML">Pause</button>
+          <button type="button"
+                  class="w-24 bg-red-600 text-sm font-medium text-white"
+                  hx-post="{% url 'up_next_status' season.id %}"
+                  hx-vals='{"status": "Dropped"}'
+                  hx-confirm="Abandonner {{ item.title }} ? La série disparaîtra de À voir et des Sorties."
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-target="#up-next-row-{{ season.id }}"
+                  hx-swap="outerHTML">Abandonner</button>
+        </div>
+      </div>
+
+      {# Foreground row #}
+      <div class="relative flex touch-pan-y items-center gap-3 bg-[#2a2f35] p-3"
+           :style="frontStyle"
+           @touchstart="start($event)"
+           @touchmove="move($event)"
+           @touchend="end()"
+           @touchcancel="end()">
+        <a href="{{ item|media_url }}" class="shrink-0">
+          <img alt="{{ item.title }}"
+               class="lazyload h-[72px] w-12 rounded-md bg-[#3e454d] object-cover"
+               data-src="{{ item.image }}"
+               src="{{ IMG_NONE }}">
+        </a>
+
+        <div class="min-w-0 flex-1">
+          <a href="{{ item|media_url }}"
+             class="line-clamp-1 text-sm font-semibold text-white hover:text-indigo-400">{{ item.title }}</a>
+          {% if entry.next_episode_number %}
+            <p class="line-clamp-1 text-xs text-gray-300">
+              S{{ entry.season_number|stringformat:"02d" }}E{{ entry.next_episode_number|stringformat:"02d" }}{% if entry.next_episode_title %} · {{ entry.next_episode_title }}{% endif %}
+            </p>
+          {% endif %}
+          {% if entry.is_available %}
+            <p class="text-xs text-indigo-400">
+              {{ entry.remaining }} épisode{{ entry.remaining|pluralize }} restant{{ entry.remaining|pluralize }}
+            </p>
+          {% elif entry.next_air_date %}
+            <p class="text-xs text-gray-400">Sortie le {{ entry.next_air_date|date_format:user }}</p>
+          {% else %}
+            <p class="text-xs text-gray-400">Date de sortie inconnue</p>
+          {% endif %}
+        </div>
+
+        <div class="relative shrink-0" x-data="{ menu: false }">
+          <button type="button"
+                  class="cursor-pointer rounded-md p-2 text-gray-400 hover:bg-[#3e454d] hover:text-white"
+                  title="Plus d'actions"
+                  @click="menu = !menu"
+                  @click.outside="menu = false">{% include "app/icons/ellipsis.svg" with classes="w-5 h-5" %}</button>
+          <div x-show="menu" x-cloak
+               class="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-md border border-gray-700 bg-[#39404b] py-1 text-sm shadow-lg">
+            <a href="{{ item|media_url }}" class="block px-4 py-2 text-gray-200 hover:bg-[#454d5a]">Voir la saison</a>
+            <button type="button"
+                    class="block w-full cursor-pointer px-4 py-2 text-left text-gray-200 hover:bg-[#454d5a]"
+                    hx-post="{% url 'up_next_status' season.id %}"
+                    hx-vals='{"status": "Paused"}'
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-target="#up-next-row-{{ season.id }}"
+                    hx-swap="outerHTML">Mettre en pause</button>
+            <button type="button"
+                    class="block w-full cursor-pointer px-4 py-2 text-left text-red-400 hover:bg-[#454d5a]"
+                    hx-post="{% url 'up_next_status' season.id %}"
+                    hx-vals='{"status": "Dropped"}'
+                    hx-confirm="Abandonner {{ item.title }} ? La série disparaîtra de À voir et des Sorties."
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-target="#up-next-row-{{ season.id }}"
+                    hx-swap="outerHTML">Abandonner la série</button>
+          </div>
+        </div>
+
+        {% if entry.is_available %}
+          <button type="button"
+                  x-ref="watch"
+                  class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-500 text-gray-200 transition-colors hover:border-emerald-500 hover:bg-emerald-600 hover:text-white"
+                  title="Marquer comme vu"
+                  hx-post="{% url 'up_next_watch' season.id %}"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                  hx-target="#up-next-row-{{ season.id }}"
+                  hx-swap="outerHTML">{% include "app/icons/checkmark.svg" with classes="w-5 h-5" %}</button>
+        {% endif %}
+      </div>
+    </li>
+  {% endwith %}
+{% elif finished %}
+  <li id="up-next-row-{{ finished.id }}"
+      class="flex items-center gap-3 rounded-lg border border-dashed border-gray-700 p-3 text-sm text-gray-400">
+    <span class="line-clamp-1 flex-1">
+      {{ finished.item.title }} —
+      {% if finished.status == "Completed" %}saison {{ finished.item.season_number }} terminée
+      {% elif finished.status == "Paused" %}mise en pause
+      {% elif finished.status == "Dropped" %}abandonnée
+      {% else %}retirée de la liste{% endif %}
+    </span>
+  </li>
+{% endif %}
+
+{% if toast %}
+  <div id="up-next-toast" hx-swap-oob="true">
+    <div x-data="{ show: true }"
+         x-init="setTimeout(() => show = false, 6000)"
+         x-show="show"
+         x-transition.opacity
+         class="pointer-events-auto flex items-center gap-4 rounded-lg border border-gray-700 bg-[#39404b] px-4 py-3 text-sm text-white shadow-lg">
+      <span>
+        {% if toast.kind == "watched" %}
+          S{{ toast.season_number|stringformat:"02d" }}E{{ toast.episode_number|stringformat:"02d" }} marqué comme vu
+        {% elif toast.kind == "paused" %}
+          Série mise en pause
+        {% else %}
+          Série abandonnée
+        {% endif %}
+      </span>
+      <button type="button"
+              class="cursor-pointer font-medium text-indigo-300 hover:text-indigo-200"
+              hx-post="{% url 'up_next_undo' toast.season_id %}"
+              {% if toast.kind == "watched" %}
+                hx-vals='{"episode_number": "{{ toast.episode_number }}"}'
+              {% else %}
+                hx-vals='{"previous_status": "In progress"}'
+              {% endif %}
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-target="#up-next-row-{{ toast.season_id }}"
+              hx-swap="outerHTML"
+              @click="show = false">Annuler</button>
+    </div>
+  </div>
+{% endif %}
