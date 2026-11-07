@@ -23,7 +23,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from simple_history.utils import bulk_update_with_history
 
-from app.models import TV, MediaTypes, Season, Status
+from app.models import TV, Episode, MediaTypes, Season, Status
 from app.providers import services
 
 DATE_LIMITE = datetime.date(2026, 6, 1)
@@ -83,14 +83,15 @@ def classer(tv, aujourd_hui):
     """Return (category, detail) for one in-progress show."""
     vus = set()
     derniere_activite = None
-    for saison in tv.seasons.all():
-        for episode in saison.episodes.all():
-            if saison.item.season_number:
-                vus.add((saison.item.season_number, episode.item.episode_number))
-            if episode.end_date:
-                jour = timezone.localtime(episode.end_date).date()
-                if derniere_activite is None or jour > derniere_activite:
-                    derniere_activite = jour
+    # One short query per show (a single prefetch over every show is too large for SQLite).
+    episodes = Episode.objects.filter(related_season__related_tv=tv).select_related("item")
+    for episode in episodes:
+        if episode.item.season_number:
+            vus.add((episode.item.season_number, episode.item.episode_number))
+        if episode.end_date:
+            jour = timezone.localtime(episode.end_date).date()
+            if derniere_activite is None or jour > derniere_activite:
+                derniere_activite = jour
 
     try:
         final = dernier_episode_diffuse(tv, aujourd_hui)
@@ -129,13 +130,12 @@ def main():
     resultats = {cle: [] for cle in LIBELLES}
 
     for user in get_user_model().objects.all():
-        series = (
+        series = list(
             TV.objects.filter(user=user, status=Status.IN_PROGRESS.value)
             .select_related("item")
-            .prefetch_related("seasons__item", "seasons__episodes__item")
-            .order_by("item__title")
+            .order_by("item__title"),
         )
-        total = series.count()
+        total = len(series)
         print(f"Utilisateur {user.username} : {total} séries en cours, analyse…")
         for i, tv in enumerate(series, start=1):
             categorie, detail = classer(tv, aujourd_hui)
