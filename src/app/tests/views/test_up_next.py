@@ -239,3 +239,90 @@ class UpNextTests(TestCase):
         groups = up_next.get_release_groups(self.user)
         releases = [r for g in groups.values() for r in g]
         self.assertTrue(releases[0].is_premiere)
+
+
+def _multi_season_metadata(media_type, media_id, source, season_numbers=None, *a, **k):  # noqa: ARG001
+    """Show with a finished season 1 (3 episodes) and a season 2 still airing."""
+
+    def day(offset):
+        return (TODAY + datetime.timedelta(days=offset)).isoformat()
+
+    seasons = {
+        1: [{"episode_number": n, "name": f"S1 {n}", "air_date": day(-100 + n), "still_path": None}
+            for n in (1, 2, 3)],
+        2: [
+            {"episode_number": 1, "name": "Retour", "air_date": day(-14), "still_path": None},
+            {"episode_number": 2, "name": "Suite", "air_date": day(-7), "still_path": None},
+            {"episode_number": 3, "name": "Plus tard", "air_date": day(7), "still_path": None},
+        ],
+    }
+
+    def season(n):
+        return {"title": "Show", "image": f"http://example.com/s{n}.jpg", "season_number": n,
+                "max_progress": len(seasons[n]), "episodes": seasons[n]}
+
+    if media_type == MediaTypes.TV.value:
+        return {"title": "Show", "related": {"seasons": [{"season_number": 1}, {"season_number": 2}]}}
+    if media_type == "tv_with_seasons":
+        return {"title": "Show", **{f"season/{n}": season(n) for n in season_numbers}}
+    return season(season_numbers[0])
+
+
+class NextSeasonTests(TestCase):
+    """A fully watched season left "in progress" points to the next season."""
+
+    def setUp(self):
+        for target, kwargs in (
+            ("app.providers.services.get_media_metadata", {"side_effect": _multi_season_metadata}),
+            ("app.models.Item.fetch_releases", {}),
+        ):
+            patcher = patch(target, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+        self.user = get_user_model().objects.create_user(username="n", password="12345")
+        self.client.login(username="n", password="12345")
+        tv_item = Item.objects.create(media_id="77", source=Sources.TMDB.value,
+                                      media_type=MediaTypes.TV.value, title="Show", image="http://x/t.jpg")
+        self.tv = TV(item=tv_item, user=self.user, status=Status.IN_PROGRESS.value)
+        TV.save_base(self.tv)
+        s1_item = Item.objects.create(media_id="77", source=Sources.TMDB.value,
+                                      media_type=MediaTypes.SEASON.value, title="Show",
+                                      image="http://x/s1.jpg", season_number=1)
+        self.season1 = Season(item=s1_item, user=self.user, related_tv=self.tv,
+                              status=Status.IN_PROGRESS.value)
+        Season.save_base(self.season1)
+        for n in (1, 2, 3):
+            ep_item = Item.objects.create(media_id="77", source=Sources.TMDB.value,
+                                          media_type=MediaTypes.EPISODE.value, title="Show",
+                                          image="http://x/e.jpg", season_number=1, episode_number=n)
+            Episode.save_base(Episode(item=ep_item, related_season=self.season1,
+                                      end_date=timezone.now() - datetime.timedelta(days=30 - n)))
+
+    def test_entry_points_to_next_season(self):
+        entry = up_next.build_entry(self.season1)
+        self.assertTrue(entry["is_next_season"])
+        self.assertEqual(entry["season_number"], 2)
+        self.assertEqual(entry["next_episode_number"], 1)
+        self.assertEqual(entry["next_episode_title"], "Retour")
+        self.assertEqual(entry["remaining"], 2)
+        self.assertTrue(entry["is_available"])
+
+    def test_page_shows_next_season_in_catch_up(self):
+        response = self.client.get(reverse("up_next"))
+        self.assertContains(response, "S02E01 · Retour")
+        self.assertContains(response, "Saison 2 · 2 épisodes restants")
+
+    def test_watch_moves_to_next_season(self):
+        response = self.client.post(reverse("up_next_watch", args=[self.season1.id]))
+        self.assertEqual(response.status_code, 200)
+        self.season1.refresh_from_db()
+        self.assertEqual(self.season1.status, Status.COMPLETED.value)
+        season2 = Season.objects.get(related_tv=self.tv, item__season_number=2)
+        self.assertEqual(season2.status, Status.IN_PROGRESS.value)
+        self.assertTrue(season2.episodes.filter(item__episode_number=1).exists())
+        self.assertContains(response, "S02E01 marqué comme vu")
+        self.assertContains(response, "S02E02 · Suite")
+        self.assertContains(response, f'id="up-next-row-{season2.id}"')
+        self.tv.refresh_from_db()
+        self.assertEqual(self.tv.status, Status.IN_PROGRESS.value)

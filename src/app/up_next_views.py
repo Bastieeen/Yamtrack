@@ -6,9 +6,11 @@ from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
+from simple_history.utils import bulk_update_with_history
 
 from app import up_next
-from app.models import Season, Status
+from app.models import Item, MediaTypes, Season, Status
+from app.providers import services
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +43,65 @@ def up_next_page(request):
     return render(request, "app/up_next.html", context)
 
 
+def _move_to_season(season, season_number):
+    """Close a fully watched season and return the user's season `season_number`.
+
+    Statuses are written directly (with history) so the show's own save hooks
+    do not start another season on their own.
+    """
+    season.status = Status.COMPLETED.value
+    bulk_update_with_history([season], Season, fields=["status"], default_user=season.user)
+
+    existing = Season.objects.filter(
+        user=season.user,
+        related_tv=season.related_tv,
+        item__season_number=season_number,
+    ).first()
+    if existing is not None:
+        if existing.status != Status.IN_PROGRESS.value:
+            existing.status = Status.IN_PROGRESS.value
+            bulk_update_with_history(
+                [existing], Season, fields=["status"], default_user=season.user,
+            )
+        return existing
+
+    metadata = services.get_media_metadata(
+        MediaTypes.SEASON.value,
+        season.item.media_id,
+        season.item.source,
+        [season_number],
+    )
+    item, _created = Item.objects.get_or_create(
+        media_id=season.item.media_id,
+        source=season.item.source,
+        media_type=MediaTypes.SEASON.value,
+        season_number=season_number,
+        defaults={
+            "title": season.item.title,
+            "image": metadata.get("image") or season.item.image,
+        },
+    )
+    return Season.objects.create(
+        item=item,
+        user=season.user,
+        related_tv=season.related_tv,
+        score=None,
+        status=Status.IN_PROGRESS.value,
+        notes="",
+    )
+
+
 @require_POST
 def up_next_watch(request, season_id):
-    """Mark the next episode of a season as watched."""
+    """Mark the next episode as watched, moving on to the next season if needed."""
     season = _season_or_404(request, season_id)
     entry = up_next.build_entry(season)
     episode_number = entry["next_episode_number"]
     if episode_number is None:
         return HttpResponseBadRequest("No episode left to watch")
+
+    if entry["is_next_season"]:
+        season = _move_to_season(season, entry["season_number"])
 
     season.watch(episode_number, timezone.now().replace(second=0, microsecond=0))
     toast = {

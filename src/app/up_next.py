@@ -24,28 +24,57 @@ def _parse_air_date(value):
         return None
 
 
-def _season_episodes(season):
+def _season_episodes(media_id, source, season_number):
     """Return the raw episode list of a season from cached provider metadata."""
     try:
         metadata = services.get_media_metadata(
             MediaTypes.SEASON.value,
-            season.item.media_id,
-            season.item.source,
-            [season.item.season_number],
+            media_id,
+            source,
+            [season_number],
         )
     except Exception:  # noqa: BLE001 - a provider error must not break the page
-        logger.warning("Could not load episodes for %s", season.item, exc_info=True)
+        logger.warning(
+            "Could not load episodes for %s season %s", media_id, season_number,
+            exc_info=True,
+        )
         return []
     return sorted(metadata.get("episodes") or [], key=lambda e: e["episode_number"])
 
 
+def _next_season_number(media_id, source, current_season_number):
+    """Return the number of the season after the current one, if the show has one."""
+    try:
+        metadata = services.get_media_metadata(MediaTypes.TV.value, media_id, source)
+    except Exception:  # noqa: BLE001
+        logger.warning("Could not load seasons for %s", media_id, exc_info=True)
+        return None
+    numbers = [
+        s.get("season_number")
+        for s in (metadata.get("related") or {}).get("seasons") or []
+        if s.get("season_number") and s["season_number"] > current_season_number
+    ]
+    return min(numbers) if numbers else None
+
+
 def build_entry(season, today=None):
-    """Describe the next episode to watch for one in-progress season."""
+    """Describe the next episode to watch for one in-progress season.
+
+    When every episode of the season has been watched (common after an import,
+    where finished seasons stay "in progress"), point to the next season instead.
+    """
     today = today or timezone.localdate()
-    episodes = _season_episodes(season)
+    media_id, source = season.item.media_id, season.item.source
+    target_season_number = season.item.season_number
+    episodes = _season_episodes(media_id, source, target_season_number)
     watched = season.progress
 
     upcoming = [e for e in episodes if e["episode_number"] > watched]
+    if episodes and not upcoming and target_season_number:
+        next_number = _next_season_number(media_id, source, target_season_number)
+        if next_number is not None:
+            target_season_number = next_number
+            upcoming = _season_episodes(media_id, source, next_number)
     next_episode = upcoming[0] if upcoming else None
     next_air_date = _parse_air_date(next_episode["air_date"]) if next_episode else None
     remaining = sum(
@@ -63,7 +92,8 @@ def build_entry(season, today=None):
     return {
         "media": season,
         "item": season.item,
-        "season_number": season.item.season_number,
+        "season_number": target_season_number,
+        "is_next_season": target_season_number != season.item.season_number,
         "next_episode_number": next_episode["episode_number"] if next_episode else None,
         "next_episode_title": (next_episode.get("name") or "") if next_episode else "",
         "next_air_date": next_air_date,

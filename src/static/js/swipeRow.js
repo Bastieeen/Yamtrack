@@ -1,6 +1,6 @@
 // Swipeable watch-list rows (phones).
-// Swipe right past the threshold: mark the next episode as watched.
-// Swipe left: reveal the "Pause" and "Drop" actions.
+// Swipe left past the threshold: mark the next episode as watched.
+// Swipe right: reveal the "Pause" and "Drop" actions.
 document.addEventListener("alpine:init", () => {
   Alpine.data("swipeRow", ({ canWatch = true } = {}) => ({
     dx: 0,
@@ -27,7 +27,7 @@ document.addEventListener("alpine:init", () => {
 
     start(event) {
       if (event.touches.length !== 1) return;
-      this.startX = event.touches[0].clientX - (this.open ? -this.actionsWidth : 0);
+      this.startX = event.touches[0].clientX - (this.open ? this.actionsWidth : 0);
       this.startY = event.touches[0].clientY;
       this.tracking = true;
       this.locked = null;
@@ -45,8 +45,8 @@ document.addEventListener("alpine:init", () => {
       if (this.locked !== "x") return;
 
       event.preventDefault();
-      const max = this.canWatch ? this.$el.offsetWidth * 0.6 : 24;
-      const min = -this.actionsWidth - 24;
+      const min = this.canWatch ? -this.$el.offsetWidth * 0.6 : -24;
+      const max = this.actionsWidth + 24;
       this.dx = Math.max(min, Math.min(max, x));
     },
 
@@ -58,13 +58,13 @@ document.addEventListener("alpine:init", () => {
         return;
       }
 
-      if (this.canWatch && this.dx > this.watchThreshold) {
-        this.dx = this.$el.offsetWidth;
+      if (this.canWatch && this.dx < -this.watchThreshold) {
+        this.dx = -this.$el.offsetWidth;
         this.open = false;
         if (navigator.vibrate) navigator.vibrate(10);
         this.$refs.watch.click();
-      } else if (this.dx < -this.actionsWidth / 2) {
-        this.dx = -this.actionsWidth;
+      } else if (this.dx > this.actionsWidth / 2) {
+        this.dx = this.actionsWidth;
         this.open = true;
       } else {
         this.close();

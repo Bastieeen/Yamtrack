@@ -7,14 +7,9 @@
         x-data="swipeRow({ canWatch: {% if entry.is_available %}true{% else %}false{% endif %} })"
         @swipe-row-start.window="closeIfOther($event)">
 
-      {# Revealed behind the row while swiping #}
+      {# Revealed behind the row while swiping: actions on the left, "Vu" on the right #}
       <div class="absolute inset-0 flex items-stretch justify-between" aria-hidden="true">
-        <div class="flex items-center gap-2 bg-emerald-600 px-5 text-sm font-medium text-white"
-             :class="dx > 0 ? 'opacity-100' : 'opacity-0'">
-          {% include "app/icons/checkmark.svg" with classes="w-5 h-5" %}
-          <span>Vu</span>
-        </div>
-        <div x-ref="actions" class="flex" :class="dx < 0 ? 'opacity-100' : 'opacity-0'">
+        <div x-ref="actions" class="flex" :class="dx > 0 ? 'opacity-100' : 'opacity-0'">
           <button type="button"
                   class="w-20 bg-amber-600 text-sm font-medium text-white"
                   hx-post="{% url 'up_next_status' season.id %}"
@@ -30,6 +25,11 @@
                   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                   hx-target="#up-next-row-{{ season.id }}"
                   hx-swap="outerHTML">Abandonner</button>
+        </div>
+        <div class="flex items-center gap-2 bg-emerald-600 px-5 text-sm font-medium text-white"
+             :class="dx < 0 ? 'opacity-100' : 'opacity-0'">
+          <span>Vu</span>
+          {% include "app/icons/checkmark.svg" with classes="w-5 h-5" %}
         </div>
       </div>
 
@@ -57,7 +57,7 @@
           {% endif %}
           {% if entry.is_available %}
             <p class="text-xs text-indigo-400">
-              {{ entry.remaining }} épisode{{ entry.remaining|pluralize }} restant{{ entry.remaining|pluralize }}
+              {% if entry.is_next_season %}Saison {{ entry.season_number }} · {% endif %}{{ entry.remaining }} épisode{{ entry.remaining|pluralize }} restant{{ entry.remaining|pluralize }}
             </p>
           {% elif entry.next_air_date %}
             <p class="text-xs text-gray-400">Sortie le {{ entry.next_air_date|date:"Y-m-d"|iso_date_format:user }}</p>
