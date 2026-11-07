@@ -112,7 +112,8 @@ def get_release_groups(user, today=None, horizon_days=RELEASES_HORIZON_DAYS):
     releases = Event.objects.get_user_events(user, today, last_day)
 
     tomorrow = today + datetime.timedelta(days=1)
-    week_end = today + datetime.timedelta(days=6 - today.weekday())
+    # Rolling week: the next 7 days, whatever the current weekday.
+    week_end = today + datetime.timedelta(days=6)
 
     groups = {"today": [], "tomorrow": [], "this_week": [], "later": []}
     for release in releases:

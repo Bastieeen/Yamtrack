@@ -26,7 +26,7 @@
                 {% if show_time %}
                   {% if release.is_sentinel_time %}heure inconnue{% else %}{{ release.datetime|time_format:user }}{% endif %}
                 {% else %}
-                  {{ release.local_date|date_format:user }}
+                  {{ release.local_date|date:"Y-m-d"|iso_date_format:user }}
                 {% endif %}
               </p>
             </div>

@@ -60,7 +60,7 @@
               {{ entry.remaining }} épisode{{ entry.remaining|pluralize }} restant{{ entry.remaining|pluralize }}
             </p>
           {% elif entry.next_air_date %}
-            <p class="text-xs text-gray-400">Sortie le {{ entry.next_air_date|date_format:user }}</p>
+            <p class="text-xs text-gray-400">Sortie le {{ entry.next_air_date|date:"Y-m-d"|iso_date_format:user }}</p>
           {% else %}
             <p class="text-xs text-gray-400">Date de sortie inconnue</p>
           {% endif %}
