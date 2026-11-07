@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% load static %}
+{% load app_tags %}
+
+{% block title %}
+  À voir - Yamtrack
+{% endblock title %}
+
+{% block content %}
+  <div class="mx-auto max-w-2xl space-y-8">
+    <div class="flex items-center justify-between">
+      <h1 class="text-3xl font-bold">À voir</h1>
+      <a href="{% url 'releases' %}"
+         class="inline-flex items-center gap-2 rounded-md border border-gray-700 bg-[#39404b] px-3 py-2 text-sm text-gray-300 hover:bg-[#454d5a] hover:text-white">
+        {% include "app/icons/calendar.svg" with classes="w-4 h-4" %}
+        <span>Sorties</span>
+      </a>
+    </div>
+
+    <p class="text-xs text-gray-400 sm:hidden">
+      Glisse une ligne vers la droite pour marquer l'épisode comme vu, vers la gauche pour mettre en pause ou abandonner.
+    </p>
+
+    <section class="space-y-3">
+      <h2 class="text-sm font-medium text-gray-400">
+        À rattraper · {{ catch_up|length }} série{{ catch_up|length|pluralize }}
+      </h2>
+      {% if catch_up %}
+        <ul class="space-y-2">
+          {% for entry in catch_up %}
+            {% include "app/components/up_next_row.html" with entry=entry %}
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="rounded-lg border border-dashed border-gray-700 p-4 text-sm text-gray-400">
+          Tu es à jour sur toutes tes séries en cours.
+        </p>
+      {% endif %}
+    </section>
+
+    {% if waiting %}
+      <section class="space-y-3">
+        <h2 class="text-sm font-medium text-gray-400">À jour · en attente du prochain épisode</h2>
+        <ul class="space-y-2">
+          {% for entry in waiting %}
+            {% include "app/components/up_next_row.html" with entry=entry %}
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  </div>
+
+  <div class="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 lg:left-64">
+    <div id="up-next-toast"></div>
+  </div>
+{% endblock content %}
+
+{% block js %}
+  <script src="{% static 'js/swipeRow.js' %}{% get_static_file_mtime 'js/swipeRow.js' %}"></script>
+{% endblock js %}

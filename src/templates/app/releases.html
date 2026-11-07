@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% load app_tags %}
+
+{% block title %}
+  Sorties - Yamtrack
+{% endblock title %}
+
+{% block content %}
+  <div class="mx-auto max-w-2xl space-y-8">
+    <div class="flex items-center justify-between">
+      <h1 class="text-3xl font-bold">Sorties</h1>
+      <a href="{% url 'up_next' %}"
+         class="inline-flex items-center gap-2 rounded-md border border-gray-700 bg-[#39404b] px-3 py-2 text-sm text-gray-300 hover:bg-[#454d5a] hover:text-white">
+        {% include "app/icons/eye.svg" with classes="w-4 h-4" %}
+        <span>À voir</span>
+      </a>
+    </div>
+
+    {% include "app/components/releases_group.html" with title="Aujourd'hui" releases=groups.today show_time=True %}
+    {% include "app/components/releases_group.html" with title="Demain" releases=groups.tomorrow show_time=True %}
+    {% include "app/components/releases_group.html" with title="Cette semaine" releases=groups.this_week %}
+    {% include "app/components/releases_group.html" with title="Plus tard" releases=groups.later %}
+
+    {% if not groups.today and not groups.tomorrow and not groups.this_week and not groups.later %}
+      <p class="rounded-lg border border-dashed border-gray-700 p-4 text-sm text-gray-400">
+        Aucune sortie prévue dans les {{ horizon_days }} prochains jours pour les séries que tu suis.
+      </p>
+    {% endif %}
+
+    <p class="text-xs text-gray-500">
+      {{ horizon_days }} prochains jours. Les séries en pause ou abandonnées sont masquées.
+      <a href="{% url 'calendar' %}" class="text-indigo-400 hover:text-indigo-300">Voir le calendrier complet</a>
+    </p>
+  </div>
+{% endblock content %}
