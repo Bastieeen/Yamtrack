@@ -625,6 +625,9 @@
   .h-8 {
     height: calc(var(--spacing) * 8);
   }
+  .h-9 {
+    height: calc(var(--spacing) * 9);
+  }
   .h-10 {
     height: calc(var(--spacing) * 10);
   }
@@ -1250,6 +1253,9 @@
   }
   .border-\[\#2c3136\] {
     border-color: #2c3136;
+  }
+  .border-emerald-600 {
+    border-color: var(--color-emerald-600);
   }
   .border-gray-300 {
     border-color: var(--color-gray-300);
@@ -2024,6 +2030,9 @@
   }
   .ring-\[\#2a2f35\] {
     --tw-ring-color: #2a2f35;
+  }
+  .ring-emerald-500 {
+    --tw-ring-color: var(--color-emerald-500);
   }
   .ring-indigo-500 {
     --tw-ring-color: var(--color-indigo-500);
@@ -2802,6 +2811,11 @@
       display: none;
     }
   }
+  .sm\:inline {
+    @media (width >= 40rem) {
+      display: inline;
+    }
+  }
   .sm\:w-32 {
     @media (width >= 40rem) {
       width: calc(var(--spacing) * 32);
@@ -2855,6 +2869,11 @@
   .sm\:justify-self-end {
     @media (width >= 40rem) {
       justify-self: flex-end;
+    }
+  }
+  .sm\:px-3 {
+    @media (width >= 40rem) {
+      padding-inline: calc(var(--spacing) * 3);
     }
   }
   .sm\:px-4 {

@@ -1,0 +1,22 @@
+{# Season page: one-tap watched toggle, plus "watched up to here" for unwatched episodes #}
+<div class="flex items-center gap-2" data-episode-toggle>
+  {% if not is_watched and episode_number > 1 %}
+    <button type="button"
+            class="cursor-pointer whitespace-nowrap rounded-full border border-gray-600 px-2 py-1 text-xs text-gray-300 hover:border-emerald-500 hover:text-white sm:px-3"
+            title="Marquer les épisodes 1 à {{ episode_number }} comme vus"
+            hx-post="{% url 'episode_toggle' %}"
+            hx-vals='{"media_id": "{{ media_id }}", "source": "{{ source }}", "season_number": "{{ season_number }}", "episode_number": "{{ episode_number }}", "action": "watch_until"}'
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-swap="none"><span class="sm:hidden">1–{{ episode_number }}</span><span class="hidden sm:inline">Vu jusqu'ici</span></button>
+  {% endif %}
+  <button type="button"
+          data-quick-toggle
+          class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border transition-colors {% if is_watched %}border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700{% else %}border-gray-500 text-gray-300 hover:border-emerald-500 hover:text-white{% endif %}"
+          title="{% if is_watched %}Vu — toucher pour annuler{% else %}Marquer comme vu{% endif %}"
+          aria-pressed="{% if is_watched %}true{% else %}false{% endif %}"
+          hx-post="{% url 'episode_toggle' %}"
+          hx-vals='{"media_id": "{{ media_id }}", "source": "{{ source }}", "season_number": "{{ season_number }}", "episode_number": "{{ episode_number }}", "action": "{% if is_watched %}unwatch{% else %}watch{% endif %}"}'
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-target="closest [data-episode-toggle]"
+          hx-swap="outerHTML">{% include "app/icons/checkmark.svg" with classes="w-4 h-4" %}</button>
+</div>

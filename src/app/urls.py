@@ -13,6 +13,7 @@ urlpatterns = [
     path("up-next/<int:season_id>/undo", up_next_views.up_next_undo, name="up_next_undo"),
     path("up-next/<int:season_id>/status", up_next_views.up_next_status, name="up_next_status"),
     path("releases", up_next_views.releases_page, name="releases"),
+    path("episode-toggle", up_next_views.episode_toggle, name="episode_toggle"),
     path("<str:username>/<media_type:media_type>", views.media_list, name="medialist"),
     path("search", views.media_search, name="search"),
     path(

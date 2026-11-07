@@ -81,3 +81,55 @@ document.addEventListener("alpine:init", () => {
     },
   }));
 });
+
+// Season page episode cards (phones): swipe left to tick / untick the episode.
+document.addEventListener("alpine:init", () => {
+  Alpine.data("swipeToggle", () => ({
+    dx: 0,
+    startX: 0,
+    startY: 0,
+    tracking: false,
+    locked: null,
+    flash: false,
+
+    get cardStyle() {
+      const transition = this.tracking ? "none" : "transform 180ms ease-out";
+      return `transform: translateX(${this.dx}px); transition: ${transition};`;
+    },
+
+    start(event) {
+      if (event.touches.length !== 1) return;
+      this.startX = event.touches[0].clientX;
+      this.startY = event.touches[0].clientY;
+      this.tracking = true;
+      this.locked = null;
+    },
+
+    move(event) {
+      if (!this.tracking) return;
+      const x = event.touches[0].clientX - this.startX;
+      const y = event.touches[0].clientY - this.startY;
+      if (this.locked === null && (Math.abs(x) > 8 || Math.abs(y) > 8)) {
+        this.locked = Math.abs(x) > Math.abs(y) ? "x" : "y";
+      }
+      if (this.locked !== "x") return;
+      event.preventDefault();
+      this.dx = Math.max(-this.$el.offsetWidth * 0.4, Math.min(0, x));
+    },
+
+    end() {
+      if (!this.tracking) return;
+      this.tracking = false;
+      const triggered = this.locked === "x" && this.dx < -Math.min(100, this.$el.offsetWidth * 0.25);
+      this.dx = 0;
+      if (!triggered) return;
+      const toggle = this.$el.querySelector("[data-quick-toggle]");
+      if (toggle) {
+        if (navigator.vibrate) navigator.vibrate(10);
+        this.flash = true;
+        setTimeout(() => { this.flash = false; }, 400);
+        toggle.click();
+      }
+    },
+  }));
+});

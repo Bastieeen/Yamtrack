@@ -558,7 +558,14 @@
             <h2 class="text-xl font-bold mb-4">Episodes</h2>
             <div class="space-y-6">
               {% for episode in media.episodes %}
-                <div class="bg-[#2a2f35] rounded-lg overflow-hidden shadow-lg">
+                <div class="bg-[#2a2f35] rounded-lg overflow-hidden shadow-lg touch-pan-y"
+                     x-data="swipeToggle"
+                     :style="cardStyle"
+                     :class="flash && 'ring-2 ring-emerald-500'"
+                     @touchstart="start($event)"
+                     @touchmove="move($event)"
+                     @touchend="end()"
+                     @touchcancel="end()">
                   <div class="flex flex-col md:flex-row" x-data="{ obfuscated:
                     {% if user.obfuscate_unseen_episodes and not episode.history %}
                       true
@@ -590,7 +597,8 @@
                               {% if episode.runtime %}• {{ episode.runtime }}{% endif %}
                             </p>
                           </div>
-                          <div class="flex space-x-2">
+                          <div class="flex items-center space-x-2">
+                            {% include "app/components/episode_quick_toggle.html" with media_id=media.media_id source=media.source season_number=media.season_number episode_number=episode.episode_number is_watched=episode.history csrf_token=csrf_token only %}
                             {# Track Episode #}
                             <div x-data="{ trackOpen: false }">
                               <button @click="trackOpen = true"

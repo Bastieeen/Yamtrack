@@ -326,3 +326,61 @@ class NextSeasonTests(TestCase):
         self.assertContains(response, f'id="up-next-row-{season2.id}"')
         self.tv.refresh_from_db()
         self.assertEqual(self.tv.status, Status.IN_PROGRESS.value)
+
+
+class EpisodeToggleTests(TestCase):
+    """Season page quick toggle and "watched up to here"."""
+
+    def setUp(self):
+        for target, kwargs in (
+            ("app.providers.services.get_media_metadata", {"side_effect": _multi_season_metadata}),
+            ("app.models.Item.fetch_releases", {}),
+        ):
+            patcher = patch(target, **kwargs)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.user = get_user_model().objects.create_user(username="t", password="12345")
+        self.client.login(username="t", password="12345")
+        tv_item = Item.objects.create(media_id="77", source=Sources.TMDB.value,
+                                      media_type=MediaTypes.TV.value, title="Show", image="http://x/t.jpg")
+        self.tv = TV(item=tv_item, user=self.user, status=Status.IN_PROGRESS.value)
+        TV.save_base(self.tv)
+
+    def post(self, episode, action, season=2):
+        return self.client.post(reverse("episode_toggle"), {
+            "media_id": "77", "source": Sources.TMDB.value, "season_number": season,
+            "episode_number": episode, "action": action,
+        })
+
+    def watched(self, season=2):
+        return sorted(Episode.objects.filter(
+            related_season__user=self.user, related_season__item__season_number=season,
+        ).values_list("item__episode_number", flat=True))
+
+    def test_watch_creates_untracked_season_and_toggles(self):
+        response = self.post(2, "watch")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.watched(), [2])
+        self.assertContains(response, '"action": "unwatch"')
+        response = self.post(2, "unwatch")
+        self.assertEqual(self.watched(), [])
+        self.assertContains(response, '"action": "watch"')
+
+    def test_watch_until_marks_previous_without_date(self):
+        response = self.post(2, "watch_until")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["HX-Refresh"], "true")
+        self.assertEqual(self.watched(), [1, 2])
+        ep1 = Episode.objects.get(related_season__item__season_number=2, item__episode_number=1)
+        ep2 = Episode.objects.get(related_season__item__season_number=2, item__episode_number=2)
+        self.assertIsNone(ep1.end_date)
+        self.assertIsNotNone(ep2.end_date)
+
+    def test_invalid_action_rejected(self):
+        self.assertEqual(self.post(1, "explode").status_code, 400)
+
+    def test_requires_login(self):
+        self.client.logout()
+        response = self.post(1, "watch")
+        self.assertNotEqual(response.status_code, 200)
+        self.assertEqual(self.watched(), [])
